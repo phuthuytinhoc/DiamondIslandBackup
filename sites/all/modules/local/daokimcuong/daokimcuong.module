@@ -1,0 +1,584 @@
+<?php
+//SUB FUNCTION HANDLE
+function getBackgroundofTypeMenu1()
+{
+    $q = new EntityFieldQuery();
+    $q 	-> entityCondition('entity_type','node')
+        -> propertyCondition('type','slideshow_image')
+        -> propertyOrderBy('created','DESC')
+        ->range(0, 1);
+    $result = $q->execute();
+
+    $arrMenuLink = array();
+    foreach($result as $node)    {
+
+        $arrMenuLink[] = $node->nid;
+    }
+
+    return  $arrMenuLink;
+
+}
+
+//MAIN FUNCTION
+
+
+function handleFrontPage()
+{
+
+//    $arr = array(149, 144, 142, 141, 140);
+//    node_delete_multiple($arr);
+
+    $slideshow = loadFieldQuery('slideshow_image','created','DESC',0,100);
+
+    $nodes_news = loadEntityQuery('article','changed','DESC',0);
+    $nodes_media = loadEntityQuery('article','changed','DESC',1);
+
+    $news = sideBarArticle($nodes_news,30,150);
+	$media = sideBarArticle($nodes_media,30,150);
+
+    $node = mAarray($news,$media);
+  
+	return theme('page_front', array('slideshow' => $slideshow , 'nodes' => $node, 'lang' => getLanguage()));
+}
+
+function loadEntityQuery($type,$orderBy,$order,$ismedia)
+{
+    $q = new EntityFieldQuery();
+
+    $q -> entityCondition('entity_type','node')
+        -> propertyCondition('type',$type)
+        -> propertyOrderBy($orderBy, $order)
+        -> fieldCondition('field_is_media','value',$ismedia,'=')
+        -> range(0, 10);
+    $result = $q->execute();
+    return  entity_load('node',array_keys($result['node']));
+}
+
+
+function loadFieldQuery($type = 'article',$orderBy = 'created',$order = 'DESC',$start,$limit)
+{
+    $_type = $type != null ? $type : 'article';
+    $_orderBy = $orderBy != null ? $orderBy : 'created';
+    $_order = $order != null ? $order : 'DESC';
+    $_start = $start != null ? $start : 0;
+    $_limit = $limit != null ? $limit : 1;
+
+    $result = new EntityFieldQuery();
+    $result -> entityCondition('entity_type','node')
+        -> propertyCondition('type',$_type)
+        -> propertyOrderBy($_orderBy,$_order)
+        ->range($_start, $_limit);
+    $nodes = $result->execute();
+
+    return  entity_load('node',array_keys($nodes['node']));
+}
+
+function handleArticlePageByTerm($termId)
+{
+	$result = taxonomy_select_nodes($termId);
+	$nodes = array();
+	$items = null;
+	$breadcrumbs = breadcrumbsByTermId($termId);
+
+	if(count($result)>1)
+    { 
+        $nid = reset($result); 
+        $items = node_load($nid);
+		foreach($result as $item)
+        {
+            $nodes[] = node_load($item);
+        }
+        $nodes_items = sideBarArticle($nodes,50,50);
+        return theme('page_article',array('nodes' => $nodes_items, 'items' => $items,'breadcrumbs' => $breadcrumbs,'lang' => getLanguage()));
+    }else{
+        $items = node_load($result[0]);
+        return theme('page_simple_content',array('items' => $items,'breadcrumbs' => $breadcrumbs,'lang' => getLanguage()));
+    }
+
+}
+
+
+function handleArticlePageByNode($nodeId)
+{
+	$items = node_load($nodeId);//@TODO
+	if ($items->type != "article") {
+		header("Location:".base_path());
+	}
+	$term = field_get_items('node',$items,'field_article_category');
+	$termId = $term[0]['tid'];
+	$nodes = array();
+	$breadcrumbs = breadcrumbsByTermId($termId);
+	$result = taxonomy_select_nodes($termId);
+
+	if (count($result)>1) {
+        foreach (
+            $result as $item){
+            $nodes[] = node_load($item);
+        }
+        $nodes_items = sideBarArticle($nodes,50,50);
+        return theme('page_article',array('nodes' => $nodes_items,'items' => $items, 'breadcrumbs' => $breadcrumbs,'lang' => getLanguage()));
+    }else{
+        $items = node_load($result[0]);
+        return theme('page_simple_content',array('items' => $items,'breadcrumbs' => $breadcrumbs,'lang' => getLanguage()));
+    }
+}
+
+function handleGalleryPage()
+{
+    $nodes = loadFieldQuery('gallery_item','created','DESC',0,100);
+
+	return theme('page_gallery',array('nodes'=>$nodes, 'lang' => getLanguage()));
+}
+
+function handleNewsPage()
+{
+	return theme('page_news');
+}
+function handleContactPage()
+{
+	return theme('page_contact');
+}
+/*
+* Implements hook_block_view_alter().
+*/
+
+function daokimcuong_block_view_alter(&$data, $block)
+{
+	if(path_is_admin(current_path())) return;
+
+	if ($block->delta == 'main' && drupal_is_front_page())
+	{
+		$data['content'] = handleFrontPage();
+	}
+	else if($block->delta == 'main' && arg(0) == 'taxonomy' && arg(1) == 'term')
+	{
+		$termId = arg(2);
+
+		// Explore & Discover
+		if($termId == 8)
+		{
+			$data['content'] = handleGalleryPage();
+		}
+
+
+//		// News
+//		else if($termId == 9)
+//		{
+//			$data['content'] = handleNewsPage();
+//		}
+
+		// Term page
+		else
+		{
+			$data['content'] = handleArticlePageByTerm($termId);
+		}
+	}
+	else if($block->delta == 'main' && arg(0) == 'node' && is_numeric(arg(1)))
+	{
+		$data['content'] = handleArticlePageByNode(arg(1));
+	}
+}
+
+/**
+ * Implements hook_theme().
+ */
+function daokimcuong_theme()
+{
+	return array(
+		'page_front'                              => array(
+			'variables' => array(),
+			'template'  => 'page-front',
+			'path'      => drupal_get_path('module', 'daokimcuong') . '/templates'
+		),
+		'page_article'                              => array(
+			'variables' => array(),
+			'template'  => 'page-article',
+			'path'      => drupal_get_path('module', 'daokimcuong') . '/templates'
+		),
+		'page_gallery'                              => array(
+			'variables' => array(),
+			'template'  => 'page-gallery',
+			'path'      => drupal_get_path('module', 'daokimcuong') . '/templates'
+		),
+		'page_news'                              => array(
+			'variables' => array(),
+			'template'  => 'page-news',
+			'path'      => drupal_get_path('module', 'daokimcuong') . '/templates'
+		),
+		'page_contact' 	=> array(
+			'variables' => array(),
+			'template' 	=> 'page-contact',
+			'path'		=> drupal_get_path('module','daokimcuong').'/templates'
+		),
+        'page_simple_content' 	=> array(
+            'variables' => array(),
+            'template' 	=> 'page-simple-content',
+            'path'		=> drupal_get_path('module','daokimcuong').'/templates'
+        )
+//        'page_new'  => array(
+//            'variables' => array(),
+//            'template' 	=> 'page-article',
+//            'path'		=> drupal_get_path('module','daokimcuong').'/templates'
+//        ),
+	);
+}
+
+/**
+ * Implements hook_menu().
+ */
+function daokimcuong_menu()
+{
+	$items = array();
+
+	$items['contact'] = array(
+						'title' => '',
+						'page callback' => '_contact',
+						'access callback' => TRUE,
+						'type' => MENU_CALLBACK
+	);
+	$items['contact/send_mail'] = array(
+						'title' => '',
+						'page callback' => '_send_mail',
+						'access callback' => TRUE,
+						'type' => MENU_CALLBACK
+	);
+	$items['gallery/gallery_mail'] = array(
+						'title' => '',
+						'page callback' => '_gallery_share_friend',
+						'access callback' => TRUE,
+						'type' => MENU_CALLBACK
+	);
+    $items['gallery'] = array(
+        'title' => 'Gallery',
+        'page callback' => 'handleGalleryPage',
+        'access callback' => TRUE,
+        'type' => MENU_NORMAL_ITEM,
+        'menu_name' => 'menu-menu-footer',
+    );
+////    $items['taxonomy/term/9'] = array(
+//                        'title' => '',
+//                        'page callback' => '_new_method',
+//                        'access callback' => TRUE,
+//                        'type' => MENU_CALLBACK
+//    );
+
+	return $items;
+}
+
+/*
+ * HOOK MENU CALLBACK METHODS
+ */
+
+
+
+function load_bg($idPage)
+{
+	$q = new EntityFieldQuery();
+	$q 	-> entityCondition('entity_type','node')
+		-> propertyCondition('type','slideshow')
+		-> propertyOrderBy('changed','DESC');
+	$result = $q->execute();
+	$node = node_load_multiple(array_keys($result['node']));
+    $image_url = '';
+    foreach($node as $item)
+    {
+        $temp = field_get_items('node',$item,'field_menu_link');
+        if($temp[0]['plid'] == $idPage)//
+        {
+            $image = field_get_items('node',$item,'field_image');
+            $image_url = file_create_url($image[0]['uri']);
+            break;
+        }
+    }
+    return $image_url;
+
+}
+
+
+function _contact()
+{
+    $contact = loadFieldQuery('contact','created','DESC',0,1);
+    $item = '';
+    foreach($contact as $value)
+    {
+        $item['name'] = field_get_items('node',$value,'field_name_officer');
+        $item['email'] = field_get_items('node',$value,'field_email');
+        $item['hotline'] = field_get_items('node',$value,'field_hotline');
+        $item['address'] = field_get_items('node',$value,'field_address');
+        $item['company'] = field_get_items('node',$value,'field_company');
+        $item['tel'] = field_get_items('node',$value,'field_tel');
+        $item['fax'] = field_get_items('node',$value,'field_fax');
+        $item['email-company'] = field_get_items('node',$value,'field_email_company');
+        $temp = field_get_items('node',$value,'field_image');
+        $item['image_url'] = file_create_url($temp[0]['uri']);
+    }
+	return theme('page_contact', array('contact' => $item, 'lang' => getLanguage()));
+}
+
+function _mailTo($mail_to,$module,$key){
+    $language = language_default();
+    $send = FALSE;
+    $from = NULL;
+    $params = array();
+    $message = drupal_mail($module,$key,$mail_to,$language, $params, $from, $send);
+    $message['headers']['Content-Type'] = 'text/html; charset=UTF-8; format=flowed';
+
+    return $message;
+}
+
+function _sendBody($message,$module,$key){
+
+    $system = drupal_mail_system($module, $key);
+    //$message = $system->format($message);
+    $message['result'] = $system->mail($message);
+
+    $notice = '';
+    if ($message['result']){
+        $notice = 1;
+    }else{
+        $notice = 0;
+    }
+    echo $notice;
+}
+
+function _send_mail()
+{
+	if (isset($_POST['email']) && isset($_POST['name']) && isset($_POST['body']) && isset($_POST['mailto'])) {
+		$name = $_POST['name'];
+		$mail = $_POST['email'];
+        $mail_to = $_POST['mailto'];
+        //$mail_to = variable_get('site_mail', '');
+		$body = $_POST['body'];
+
+        $module = 'daokimcuong';
+        $key = 'notice';
+        $message = _mailTo($mail_to,$module,$key);
+
+        $subject = "Email is sent from Diamond Island";
+		$message['subject'] = $subject;
+		$message['body'] = array();
+		$message['body'] = "Name: ".$name."<br>Email: ".$mail."<br>".$body;
+
+        _sendBody($message,$module,$key);
+	}
+}
+
+function _gallery_share_friend()
+{
+
+	if (isset($_POST['email']) && isset($_POST['body'])) {
+
+		$mail_to = $_POST['email'];
+		$body = $_POST['body'];
+		$module = 'daokimcuong';
+		$key = 'notice';
+		$subject = "Email is sent from Diamond Island";
+        $message = _mailTo($mail_to,$module,$key);
+
+		$message['subject'] = $subject;
+		$message['body'] = array();
+		$message['body'] = "E-mail: ".$mail_to."<br>".$body;
+        _sendBody($message,$module,$key);
+	}
+}
+
+function breadcrumbsByTermId($termId)
+{
+    $term_name = "";
+    $term = "";
+
+    if (is_numeric($termId)){
+
+        $local = i18n_taxonomy_localize_terms(taxonomy_term_load($termId));
+        $term_parent = i18n_taxonomy_localize_terms(taxonomy_get_parents($termId));
+
+        if ($term_parent) {
+            foreach ($term_parent as $value) {
+                $term_name = "<a href = '".base_path()."taxonomy/term/$value->tid' id = 'envi123'>".$value->name."</a> <span> > </span>";
+            }
+        }
+        $term = "<a href = '".base_path()."taxonomy/term/$local->tid' id = 'envi123' >".$local->name."</a>";
+    }
+    return $term_name.$term;
+}
+
+
+function _cut_str($str,$len)
+{
+	$words = explode(' ', $str);
+    $count = 0;
+    $new_str = '';
+    foreach ($words as $val) 
+    {
+        if ($count < $len) 
+        {
+            $new_str .= $val.' ';
+            $count = $count + strlen($val);
+        }
+    }
+    $new_str = rtrim($new_str, ' ,.;:');
+
+	return $new_str;
+}
+
+function sideBarArticle($nodes,$lentitle,$lenbody)
+{
+	$nodes_items = array();
+
+	foreach ($nodes as $value) {
+		$image_url = field_get_items('node',$value,'field_image');
+		$img_url = $image_url[0]['uri'];
+		$img_thumb_url =  image_style_url('thumbnail', $img_url);
+		$bodies = field_get_items('node',$value,'body');
+
+        $media = field_get_items('node',$value,'field_source_media');
+        $ismedia = field_get_items('node',$value,'field_is_media');
+        $img_meida = '';
+        $virtual = 0;
+
+        if($ismedia[0]['value']==1 && $image_url){
+            $img_meida = file_create_url($image_url[1]['uri']);
+            $virtual = 1;
+        }
+         $nodes_items[] = array(
+         		'title' => _cut_str($value->title,$lentitle),
+         		'body' => _cut_str($bodies[0]['summary'],$lenbody),
+         		'image_url' => $img_thumb_url,
+                'media_src' => $media[0]['value'],
+                'ismedia' => $ismedia[0]['value'],
+                'img_media' => $img_meida,
+                'virtual' => $virtual,
+         		'id' => $value->nid,
+         	);
+	}
+	return $nodes_items;
+}
+
+function mAarray($array1,$array2)
+{
+    $m_arr = array();
+    $len1 = count($array1);
+    $len2 = count($array2);
+    $k = 0;
+    for ($i=0, $j = 0; $i < $len1 || $j < $len2; $i++, $j++) { 
+        
+        if ($i < $len1) 
+        {
+            $m_arr[$k++] = $array1[$i];
+        }
+        if ($j < $len2)
+        {
+            $m_arr[$k++] = $array2[$j];
+        }
+    }
+
+    return $m_arr;
+}
+
+
+function getLanguage()
+{
+    global $language;
+    $lang = '';
+    if ($language->language == 'en'){
+
+        $lang = array(
+
+            'text_read' => 'Read more',
+            'text_send' => 'SEND',
+            'text_gellary' => 'GALLERY',
+            'text_latest-news' => 'LATEST NEWS',
+            'text_related-post' => 'Related post',
+            'text_contact-us' => 'CONTACT US',
+            'text_community-care-officer' => 'Community Care Officer',
+            'text_address' => 'Address',
+            'text_mailto-us' => 'Mail to us',
+            'text_your-name' => 'Your name',
+            'text_email-address' => 'Your email address',
+            'text_body-contact' => 'Please tell us what you need',
+            'text_share-it' => 'Share it',
+            'text_share-your-mail-friend' => 'Your friend email address',
+            'text_your-message' => 'Your message',
+            'txt_email' => 'Email',
+            'txt_hotline' => 'Hotline',
+            'txt_tel' => 'Tel',
+            'txt_fax' => 'Fax',
+
+            'text_dayofweek' => array(
+                'Sunday' => 'Sunday',
+                'Monday' => 'Monday',
+                'Tuesday' => 'Tuesday',
+                'Wednesday' => 'Wednesday',
+                'Thursday' => 'Thursday',
+                'Friday' => 'Friday',
+                'Saturday' => 'Saturday'
+            ),
+            'text_monthofyear' => array(
+                'Jan' => "January",
+                'Feb' => "February",
+                'Mar' => "March",
+                'Apr' => "April",
+                'May' => "May",
+                'Jun' => "June",
+                'Jul' => "July",
+                'Aug' => "August",
+                'Sep' => "September",
+                'Oct' => "October",
+                'Nov' => "November",
+                'Dec' => "December"
+            )
+        );
+
+    }else if($language->language == 'vi'){
+        $lang = array(
+
+            'text_read' => 'Đọc tiếp',
+            'text_send' => 'GỬI',
+            'text_gellary' => 'THƯ VIỆN',
+            'text_latest-news' => 'TIN MỚI NHẤT',
+            'text_related-post' => 'Bài viết liên quan',
+            'text_contact-us' => 'LIÊN HỆ',
+            'text_community-care-officer' => 'Nhân Viên Chăm Sóc',
+            'text_address' => 'Địa Chỉ',
+            'text_mailto-us' => 'Gửi e-mail cho chúng tôi',
+            'text_your-name' => 'Tên của bạn',
+            'text_email-address' => 'Địa chỉ mail của bạn',
+            'text_body-contact' => 'Nói với chúng tôi điều bạn cần',
+            'text_share-it' => 'Chia Sẻ',
+            'text_share-your-mail-friend' => 'Địa Chỉ mail muốn chia sẻ',
+            'text_your-message' => 'Nội dung',
+            'txt_email' => 'Email',
+            'txt_hotline' => 'Hotline',
+            'txt_tel' => 'Tel',
+            'txt_fax' => 'Fax',
+
+            'text_dayofweek' => array(
+                'Sunday' => 'Chủ Nhật',
+                'Monday' => 'Thứ 2',
+                'Tuesday' => 'Thứ 3',
+                'Wednesday' => 'Thứ 4',
+                'Thursday' => 'Thứ 5',
+                'Friday' => 'Thứ 6',
+                'Saturday' => 'Thứ 7'
+            ),
+            'text_monthofyear' => array(
+
+                'Jan' => "Tháng 01",
+                'Feb' => "Tháng 02",
+                'Mar' => "Tháng 03",
+                'Apr' => "Tháng 04",
+                'May' => "Tháng 05",
+                'Jun' => "Tháng 06",
+                'Jul' => "Tháng 07",
+                'Aug' => "Tháng 08",
+                'Sep' => "Tháng 09",
+                'Oct' => "Tháng 10",
+                'Nov' => "Tháng 11",
+                'Dec' => "Tháng 12"
+            )
+        );
+    }
+
+    return $lang;
+}
+

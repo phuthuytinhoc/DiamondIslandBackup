@@ -1,0 +1,19 @@
+name = Daokimcuong
+description = The luxury community.
+core = 7.x
+engine = phptemplate
+stylesheets[all][] = style.css
+stylesheets[all][] = orbit-1.2.3.css
+
+scripts[] = js/jquery-1.8.2.js
+scripts[] = js/jquery.nicescroll.js
+scripts[] = js/jquery.orbit-1.2.3.js
+
+regions[header]         = Header
+regions[navigation]     = Navigation
+regions[highlighted]    = Highlighted
+regions[help]           = Help
+regions[content]        = Content
+regions[sidebar_first]  = First Sidebar
+regions[sidebar_second] = Second Sidebar
+regions[footer]         = Footer

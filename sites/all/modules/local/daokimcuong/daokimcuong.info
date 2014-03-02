@@ -1,0 +1,5 @@
+name = Daokimcuong
+description = Core module for Daokimcuong theme.
+package = Local
+version = VERSION
+core = 7.x

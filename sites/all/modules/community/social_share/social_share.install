@@ -1,0 +1,32 @@
+<?php
+
+/**
+ * Replace Google Buzz with Google Plus.
+ */
+function social_share_update_7101(&$sandbox) {
+  $social_share_settings = variable_get('social_share_sites', array());
+
+  foreach ($social_share_settings as $site => $onoff) {
+    if ($site == 'googlebuzz') {
+      if ($onoff) {
+        $onoff = 'googleplus';
+      }
+      $social_share_settings['googleplus'] = $onoff;
+      unset($social_share_settings['googlebuzz']);
+      continue;
+    }
+  }
+
+  variable_set('social_share_sites', $social_share_settings);
+
+  return t('Google Buzz has been replaced with Google Plus.');
+}
+
+/**
+ * Remove twitter method setting
+ */
+function social_share_update_7102(&$sandbox) {
+  variable_del('social_share_twitter_method');
+
+  return t('Removed Twitter method setting from config form.');
+}

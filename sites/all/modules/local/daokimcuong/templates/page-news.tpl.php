@@ -1,0 +1,1 @@
+Load all articles of term "News"
